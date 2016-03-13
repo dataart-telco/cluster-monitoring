@@ -41,25 +41,27 @@ type AgentCallback interface {
 }
 
 type MonitorAgent struct {
-	marathonHost string
-	appId        string
+	MarathonHost      string
+	AppId             string
+	CollectorInterval int
+	Callback          AgentCallback
 
-	restcommUser     string
-	restcommPswd     string
-	restcommPort     int
-	restcommMaxCalls int
+	Restcomm struct {
+		User      string
+		Pswd      string
+		Port      int
+		MaxCalls  int
+	}
 
-	collectorInterval int
-	stopWorker        chan int
-	Callback            AgentCallback
+	stopWorker chan int
 }
 
 func (self *MonitorAgent) GetClusterNodes() (*MesosResponse, error) {
-	_, body, err := http.Get("http://" + self.marathonHost + "/v2/apps/" + self.appId + "/tasks")
+	_, body, err := http.Get("http://" + self.MarathonHost + "/v2/apps/" + self.AppId + "/tasks")
 	if err != nil {
 		return nil, err
 	}
-	log.Trace.Println("Get tasks for", self.appId, ": ", string(body))
+	log.Trace.Println("Get tasks for", self.AppId, ": ", string(body))
 
 	var respData MesosResponse
 	err = json.Unmarshal(body, &respData)
@@ -89,7 +91,7 @@ func (self *MonitorAgent) CollectClusterMetrics(tasks *MesosResponse) (*Restcomm
 func (self *MonitorAgent) GetRestCommCallStat(host string) (*RestcommNode, error) {
 
 	url := fmt.Sprintf("http://%s:%s@%s:%d/restcomm/2012-04-24/Accounts/%s/Supervisor.json/metrics",
-		self.restcommUser, self.restcommPswd, host, self.restcommPort, self.restcommUser)
+		self.Restcomm.User, self.Restcomm.Pswd, host, self.Restcomm.Port, self.Restcomm.User)
 
 	log.Trace.Println("Try get data by url:", url)
 
@@ -121,11 +123,11 @@ func (self *MonitorAgent) CollectMetrics() {
 }
 
 func (self *MonitorAgent) StartWorker() {
-	log.Info.Println("StartWorker:", self.collectorInterval)
+	log.Info.Println("StartWorker:", self.CollectorInterval)
 	do := func() {
 		self.CollectMetrics()
 	}
-	self.stopWorker = thread.Schedule(self.collectorInterval, do)
+	self.stopWorker = thread.Schedule(self.CollectorInterval, do)
 	go do()
 }
 
